@@ -1,0 +1,110 @@
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: eureka
+  name: eureka
+spec:
+  ports:
+  - name: eureka
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    role: eureka
+  sessionAffinity: None
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Route
+metadata:
+  labels:
+    name: eureka
+  name: eureka
+spec:
+  host: eureka.example.com
+  tls:
+    termination: edge
+  to:
+    kind: Service
+    name: eureka
+
+---
+apiVersion: v1
+kind: DeploymentConfig
+metadata:
+  name: eureka
+spec:
+  replicas: 1
+  selector:
+    role: eureka
+  strategy:
+    resources:
+      limits:
+        cpu: "100m"
+        memory: "256Mi"
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+    rollingParams:
+      intervalSeconds: 1
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 600
+      updatePeriodSeconds: 1
+    type: Rolling
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        role: eureka
+    spec:
+      containers:
+      - name: eureka
+        env:
+        - name: APP_NAME
+          value: eureka
+        - name: JAVA_OPTS_EXT
+          value: -Djava.security.egd=file:/dev/./urandom -Xms128m -Xmx128m -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC
+        - name: JAVA_PARAMETERS
+          value: --spring.profiles.active=devC4
+        - name: PROJECT_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: CONFIG_SERVER
+          value: http://config:8080/
+        image: 10.6.174.76:5000/baseimages/javase:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 600
+          timeoutSeconds: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 750m
+            memory: 640Mi
+          requests:
+            cpu: 750m
+            memory:  230Mi
+        terminationMessagePath: /dev/termination-log
+
+  triggers:
+  - type: ConfigChange
